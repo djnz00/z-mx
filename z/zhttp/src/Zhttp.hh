@@ -20,6 +20,13 @@
 
 namespace Zhttp {
 
+// Bits is the power of 2 of the linear hash table size used to index
+// headers - e.g. 7 for 128, which is a safe limit since most sites
+// generate fewer than 32 headers; the hash table is static since resizing
+// is expensive
+
+constexpr unsigned DefltBits = 7; // default Bits
+
 // hard-coded linear white space (ASCII/UTF8)
 ZuInline constexpr bool islws(char c) {
   return c == '\t' || c == ' ';
@@ -140,32 +147,27 @@ inline void normalize(ZuSpan<char> key) {
   }
 }
 
-// Bits is the power of 2 of the linear hash table size used to index
-// headers - e.g. 7 for 128, which is a safe limit since most sites
-// generate fewer than 32 headers; we keep this static since resizing
-// is expensive
-
-template <unsigned Bits>
-using IHeaders =
-  ZmLHashKV<ZuCSpan, ZuCSpan, ZmLHashStatic<Bits, ZmLHashLocal<>>>;
-
 namespace TransferEncoding {
   ZtEnumValues(TransferEncoding, int8_t, compress, deflate, gzip);
 }
 
-// handles everything after the start line, or a chunked encoding trailer
+// Headers handles everything after the start line or a chunked trailer
+
 template <unsigned Bits>
-struct Header {
-  IHeaders<Bits>	headers;
-  unsigned		offset = 0;
-  bool			complete = false;
+struct Headers {
+  using Map =
+    ZmLHashKV<ZuCSpan, ZuCSpan, ZmLHashStatic<Bits, ZmLHashLocal<>>>;
+
+  Map		map;
+  unsigned	offset = 0;
+  bool		complete = false;
 
   // following a previous parse() the buffer's memory address
   // may have moved due to growth reallocation; if necessary
   // rebase all previously parsed headers
   void rebase(ptrdiff_t o) {
     if (!o || !offset) return;	// not moved or nothing parsed yet
-    auto i = headers.iterator();
+    auto i = map.iterator();
     while (auto node = i.iterate()) {
       node->template p<0>().rebase(o);
       node->template p<1>().rebase(o);
@@ -198,7 +200,7 @@ struct Header {
       if (ZuUnlikely(n < 0)) return -1; // should never happen
       value.trunc(n);
       normalize(key);
-      headers.add(key, value);
+      map.add(key, value);
       offset = o;
     }
     o += 2;
@@ -215,13 +217,13 @@ struct Header {
 // 0   - incomplete
 // -1  - invalid / corrupt
  
-template <unsigned Bits = 7>
-struct Request : public Header<Bits> {
+template <unsigned Bits = DefltBits>
+struct Request : public Headers<Bits> {
   ZuCSpan	method;		// e.g. GET
   ZuCSpan	path;		// path
   ZuCSpan	protocol;	// e.g. HTTP/1.1
 
-  using Header<Bits>::offset;
+  using Headers<Bits>::offset;
 
   // rebase spans
   void rebase(ptrdiff_t o) {
@@ -229,7 +231,7 @@ struct Request : public Header<Bits> {
     method.rebase(o);
     path.rebase(o);
     protocol.rebase(o);
-    Header<Bits>::rebase(o);
+    Headers<Bits>::rebase(o);
   }
 
   // parse request
@@ -253,24 +255,24 @@ struct Request : public Header<Bits> {
       protocol = {&data[b], unsigned(o)};
       offset = b + o + 2;
     }
-    return Header<Bits>::parse(data);
+    return Headers<Bits>::parse(data);
   }
 };
 
-template <unsigned Bits = 7>
-struct Response : public Header<Bits> {
+template <unsigned Bits = DefltBits>
+struct Response : public Headers<Bits> {
   ZuCSpan	protocol;	// e.g. HTTP/1.1
   int		code = -1;	// e.g. 200
   ZuCSpan	reason;		// e.g. OK
 
-  using Header<Bits>::offset;
+  using Headers<Bits>::offset;
 
   // rebase spans
   void rebase(ptrdiff_t o) {
     if (!o || !offset) return;
     protocol.rebase(o);
     reason.rebase(o);
-    Header<Bits>::rebase(o);
+    Headers<Bits>::rebase(o);
   }
 
   // parse response line
@@ -298,14 +300,47 @@ struct Response : public Header<Bits> {
       reason = {&data[b], unsigned(o)};
       offset = b + o + 2;
     }
-    return Header<Bits>::parse(data);
+    return Headers<Bits>::parse(data);
   }
 };
 
-// parse chunk header
-// - returns {length, offset} where offset is offset to chunk data
-// - returns {0} if unterminated/incomplete
-// - returns {-1} if invalid/corrupt
+// header loader
+template <unsigned Bits = DefltBits>
+struct Header : public Response<Bits> {
+  static constexpr unsigned DefltMax = (64<<10); // 64K default
+
+  using Response<Bits>::complete;
+  using Response<Bits>::rebase;
+  using Response<Bits>::parse;
+
+  ZtArray<char>	data; // the payload
+  unsigned	max = DefltMax;
+  bool		valid = true;
+
+  int process(ZuSpan<char> rcvd) {
+    if (ZuUnlikely(complete)) return valid ? 0 : -1;
+    if (data.length() + rcvd.length() > max) {
+      complete = true, valid = false;
+      return -1;
+    }
+    auto data_ = &data[0];
+    data << rcvd;
+    if (data_) rebase(&data[0] - data_);
+    int o = parse(data);
+    if (o < 0) {
+      complete = true, valid = false;
+      return -1;
+    }
+    if (!o) return rcvd.length();
+    data.length(o);
+    // truncate threshold is wastage > min(1K, o)
+    unsigned tt = o + (1<<10);
+    if (tt > (o<<1)) tt = o<<1;
+    if (data.size() >= tt) data.truncate();
+    return o;
+  }
+};
+
 ZuInline constexpr uint8_t hex(uint8_t c) {
   c |= 0x20;
   return 
@@ -316,6 +351,10 @@ struct ChunkHdr {
   int		offset = 0;
   int		length = 0;
 
+  // parse chunk header
+  // - returns offset if complete
+  // - returns 0 if unterminated/incomplete
+  // - returns -1 if invalid/corrupt
   inline int parse(ZuCSpan data) {
     unsigned o = 0, n = data.length();
     if (n > 10) n = 10;
@@ -341,9 +380,10 @@ struct ChunkHdr {
 
   bool complete() { return offset != 0; }
   bool valid() { return offset >= 0; }
-  bool eob() { return !length; }
+  bool eob() { return !length; } // end of body
 };
 
+// body loader
 struct Body {
   static constexpr unsigned DefltMax = (1<<20); // 1Mb default
 
@@ -363,7 +403,7 @@ struct Body {
   template <typename Header>
   bool init(const Header &header, unsigned max = DefltMax) {
     this->max = max;
-    if (auto s = header.headers.findVal("Transfer-Encoding"))
+    if (auto s = header.map.findVal("Transfer-Encoding"))
       split(s, [this](unsigned i, ZuCSpan token) {
 	// chunked must come last, anything else must be first
 	if (chunked)
@@ -376,7 +416,7 @@ struct Body {
 	  transferEncoding = TransferEncoding::lookup(token);
       });
     if (valid && !chunked)
-      if (auto s = header.headers.findVal("Content-Length")) {
+      if (auto s = header.map.findVal("Content-Length")) {
 	contentLength = ZuBox<unsigned>{s};
 	if (contentLength > max)
 	  valid = false;
@@ -457,9 +497,11 @@ struct Body {
 	  processed += rcvd.length();
 	  break;
 	}
-	// truncate chunk trailer
 	chunkTrailer.length(n);
-	chunkTrailer.truncate();
+	// truncate threshold is wastage > min(1K, o)
+	unsigned tt = n + (1<<10);
+	if (tt > (n<<1)) tt = n<<1;
+	if (chunkTrailer.size() > tt) chunkTrailer.truncate();
 	// complete
 	n -= o;
 	processed += n;

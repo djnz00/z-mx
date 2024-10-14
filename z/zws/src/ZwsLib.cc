@@ -4,7 +4,7 @@
 // (c) Copyright 2024 Psi Labs
 // This code is licensed by the MIT license (see LICENSE for details)
 
-// Z secure websockets library
+// Z websockets library
 
 #include <zlib/ZwsLib.hh>
 

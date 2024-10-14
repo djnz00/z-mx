@@ -132,7 +132,7 @@ int main()
     CHECK(r.protocol == "HTTP/1.1");
     CHECK(r.path == "/");
     CHECK(r.method == "GET");
-    CHECK(r.headers.findVal("Host") == "foo.com");
+    CHECK(r.map.findVal("Host") == "foo.com");
   }
   {
     Response<5> r;
@@ -142,7 +142,7 @@ int main()
     CHECK(r.protocol == "HTTP/1.1");
     CHECK(r.code == 200);
     CHECK(r.reason == "OK");
-    CHECK(r.headers.findVal("Referrer-Policy") == "no-referrer-when-downgrade");
+    CHECK(r.map.findVal("Referrer-Policy") == "no-referrer-when-downgrade");
     msg.offset(o);
     Body body;
     body.init(r);
@@ -215,9 +215,9 @@ int main()
     CHECK(body.chunked);
     CHECK(body.chunkBuf == "0\r\n");
     CHECK(body.chunkTrailer == "Server-Timing: cpu;dur=2.4\r\n\r\n");
-    Header<2> header;
-    header.parse(body.chunkTrailer);
-    auto s = header.headers.findVal("Server-Timing");
+    Headers<2> trailer;
+    trailer.parse(body.chunkTrailer);
+    auto s = trailer.map.findVal("Server-Timing");
     CHECK(s == "cpu;dur=2.4");
     split<';'>(s, [](unsigned i, ZuCSpan s) {
       switch (i) {
@@ -281,9 +281,9 @@ int main()
     CHECK(body.chunked);
     CHECK(body.chunkBuf == "0\r\n");
     CHECK(body.chunkTrailer == "Server-Timing: cpu;dur=2.4\r\n\r\n");
-    Header<2> header;
-    header.parse(body.chunkTrailer);
-    auto s = header.headers.findVal("Server-Timing");
+    Headers<2> trailer;
+    trailer.parse(body.chunkTrailer);
+    auto s = trailer.map.findVal("Server-Timing");
     CHECK(s == "cpu;dur=2.4");
     split<';'>(s, [](unsigned i, ZuCSpan s) {
       switch (i) {

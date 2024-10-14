@@ -54,42 +54,34 @@ struct App : public Ztls::Client<App> {
     }
 
     int process(const uint8_t *data, unsigned len) {
+      if (ZuUnlikely(body.complete)) return -1;
+      auto rcvd = ZuSpan<char>{const_cast<uint8_t *>(data), len};
       unsigned processed = 0;
-      if (!response.complete) {
-	{
-	  auto header_ = &header[0];
-	  header << ZuSpan<char>{const_cast<uint8_t *>(data), len};
-	  if (header_) response.rebase(&header[0] - header_);
-	}
-	int o = response.parse(header);
+      int o;
+      if (!header.complete) {
+	o = header.process(rcvd);
 	if (o < 0) {
 	  std::cerr << "invalid HTTP response\n" << std::flush;
 	  return -1;
 	}
-	if (!o) return len;
+	if (!header.complete) return o;
 	processed += o;
-	if (!body.init(response)) {
+	rcvd.offset(o);
+	if (!body.init(header, 10<<20)) {
 	  std::cerr
 	    << "invalid HTTP Transfer-Encoding / Content-Length\n"
 	    << std::flush;
 	  return -1;
 	}
-	int n = body.process(ZuCSpan{&header[o], header.length() - o});
-	if (n < 0) {
-	  std::cerr << "invalid HTTP body\n" << std::flush;
-	  return -1;
-	}
-	processed += n;
-	header.length(o);
-	header.truncate();
-      } else {
-	int n = body.process(ZuCSpan{data, len});
-	if (n < 0) {
-	  std::cerr << "invalid HTTP body\n" << std::flush;
-	  return -1;
-	}
-	processed += n;
+	if (!rcvd) return processed;
       }
+      o = body.process(rcvd);
+      if (o < 0) {
+	std::cerr << "invalid HTTP body\n" << std::flush;
+	return -1;
+      }
+      processed += o;
+      // rcvd.offset(o);
       if (!body.complete) return processed;
       if (!body.valid) {
 	// invalid body should have been caught by body.process() returning -1
@@ -98,7 +90,7 @@ struct App : public Ztls::Client<App> {
       }
       auto file = fopen("index.hdr", "w");
       ZmAssert(file);
-      fwrite(header.data(), 1, header.length(), file);
+      fwrite(header.data.data(), 1, header.data.length(), file);
       fclose(file);
       file = fopen("index.html", "w");
       ZmAssert(file);
@@ -108,8 +100,7 @@ struct App : public Ztls::Client<App> {
       return -1;
     }
 
-    ZtArray<char>	header;
-    Zhttp::Response<>	response;
+    Zhttp::Header<>	header;
     Zhttp::Body		body;
   };
 

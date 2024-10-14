@@ -252,6 +252,6 @@ private:
   unsigned		m_timeout = 0;
 };
 
-}
+} // Zws
 
 #endif /* Zws_HH */
