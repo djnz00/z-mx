@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4
 METASOURCES = AUTO
-SUBDIRS = zu zm zt ze zi ztls zhttp zfb zv zdb
+SUBDIRS = zu zm zt ze zi ztls zhttp zrest zfb zv zdb
 if LIBPQ
 SUBDIRS += zdb_pq
 endif
