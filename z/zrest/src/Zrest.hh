@@ -97,7 +97,6 @@ private:
 private:
   ZmScheduler::Timer	m_timer;
   ZmAtomic<int>		m_state = State::Down;
-
 };
 
 template <typename App_, typename Link_>

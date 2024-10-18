@@ -196,9 +196,7 @@ private:
   }
   int rxIn(void *ptr, size_t len) { // TLS thread
     if (ZuUnlikely(!m_rxInQueue.count_())) {
-      if (ZuUnlikely(!m_cxn)) {
-	return MBEDTLS_ERR_SSL_CONN_EOF;
-      }
+      if (ZuUnlikely(!m_cxn)) return MBEDTLS_ERR_SSL_CONN_EOF;
       return MBEDTLS_ERR_SSL_WANT_READ;
     }
     ZmRef<ZiIOBuf> buf = m_rxInQueue.shift();
